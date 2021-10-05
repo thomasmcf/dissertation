@@ -1,5 +1,6 @@
 library(secr)
 library(MASS)
+library(dplyr)
 
 # Mean life time of scat
 MEAN_LIFE <- 365 / 2
@@ -137,29 +138,14 @@ population <- function(N0, T){
 
 
 
-
-
-
-
-
-
-
 # Simulate the study site for three years, with N individuals present in that time
-N0 <- 10
+N0 <- 30
 pop <- population(N0, 365 * 3)
 
-# Create a list to store the transect lines
-transect_list <- vector("list", 11)
-for(i in 1:11){
-  # Start with a data frame with two columns and two rows
-  # The first row is the start point, the second row is the finish point
-  # Each transect runs from x = -100 to x = 100, and is at constant height
-  # Transects are stacked vertically, 20 units apart
-  transect_list[[i]] <- data.frame(x = c(-100, 100), y = rep(-100 + (i - 1) * 20, 2))
-}
-
-# Convert to a list of secr transect objects
-transect_list <- make.transect(transect_list)
+# Create a blank plot
+plot(c(-SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2, SITE_LENGTH/2),
+     c(-SITE_LENGTH/2, SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2),
+     type = 'n', xlab = "Longitude", ylab = "Latitude")
 
 # Iterate over the population
 N <- length(pop)
@@ -178,6 +164,47 @@ for(i in 1:N){
     points(ind$activity_centre[1], ind$activity_centre[2], pch = 19, cex = 1.5, col = 'red')
   }
 }
+
+# Add a legend
+legend(-100, 100, c("Present", "Departed", "Dropping"),
+       col = c('green', 'red', 'blue'),
+       pch=19)
+
+# Define a number of simulations to run, and define vectors to store results
+B <- 200
+N_present <- numeric(B)
+N_detectable <- numeric(B)
+
+
+# Sys.time() # Time how long the simulations take
+# Run simulations - Takes ~7 minutes on my machine
+for(i in 1:B){
+  # Pick a number of expected individuals
+  N0 <- sample(5:100, 1)
+  # Generate 101 years of data
+  # The survey is carried out at t=100 years
+  # The first 100 years are for burn in, and to ensure no droppings would be present at t=100 that were dropped before t=0
+  # The last year is to avoid the tail behaviour that occurs as the simulation ends
+  pop <- population(N0, 365 * 101)
+  
+  # Iterate over all animals that were present
+  for(j in 1:length(pop)){
+    # If animal j was present at t=100 years, increment the value in the presence vector
+    if(between(365 * 100, pop[[j]]$present[1], pop[[j]]$present[2])){
+      N_present[i] <- N_present[i] + 1
+    }
+    
+    # If any of animals j's droppings were present at t=100 years, increment the value in the detectable vector
+    if(any(pop[[j]]$drop_times <= 365 * 100 & pop[[j]]$decay_times >= 365 * 100)){
+      N_detectable[i] <- N_detectable[i] + 1
+    }
+  }
+  
+}
+# Plot the results
+plot(N_present, N_detectable)
+abline(0, 1)
+# Sys.time() # End timing
 
 # Convert the locations to a form usable by secr
 # This takes the form of a list with one element per individual
@@ -198,10 +225,25 @@ for(i in 1:N){
   }
 }
 
+# Create a list to store the transect lines
+transect_list <- vector("list", 11)
+for(i in 1:11){
+  # Start with a data frame with two columns and two rows
+  # The first row is the start point, the second row is the finish point
+  # Each transect runs from x = -100 to x = 100, and is at constant height
+  # Transects are stacked vertically, 20 units apart
+  transect_list[[i]] <- data.frame(x = c(-100, 100), y = rep(-100 + (i - 1) * 20, 2))
+}
+
+# Convert to a list of secr transect objects
+transect_list <- make.transect(transect_list)
+
+# Simulate capture history
 capthist <- sim.capthist(traps = transect_list,
                          popn = droppings,
                          detectfn = 'HHN',
                          detectpar = list(lambda0 = 0.5, sigma = 50),
                          noccasions = 3)
 
+# Fit model (or at least try)
 mod <- secr.fit(capthist = capthist)
