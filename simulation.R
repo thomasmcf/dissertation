@@ -142,7 +142,7 @@ population <- function(N0, T){
 N0 <- 30
 pop <- population(N0, 365 * 3)
 
-# Create a blank plot
+# Create a blank plot - this will eventually show the spatial locations of activity centres and droppings
 plot(c(-SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2, SITE_LENGTH/2),
      c(-SITE_LENGTH/2, SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2),
      type = 'n', xlab = "Longitude", ylab = "Latitude")
@@ -170,11 +170,11 @@ legend(-100, 100, c("Present", "Departed", "Dropping"),
        col = c('green', 'red', 'blue'),
        pch=19)
 
+# Now explore the issue of "prolonged detectability"
 # Define a number of simulations to run, and define vectors to store results
 B <- 200
 N_present <- numeric(B)
 N_detectable <- numeric(B)
-
 
 # Sys.time() # Time how long the simulations take
 # Run simulations - Takes ~7 minutes on my machine
@@ -206,6 +206,7 @@ plot(N_present, N_detectable)
 abline(0, 1)
 # Sys.time() # End timing
 
+# Now run a SCR study
 # Convert the locations to a form usable by secr
 # This takes the form of a list with one element per individual
 # Each individual's list element contains a data frame with the x and y coordinates of the droppings present at survey time
@@ -225,18 +226,20 @@ for(i in 1:N){
   }
 }
 
-# Create a list to store the transect lines
-transect_list <- vector("list", 11)
-for(i in 1:11){
-  # Start with a data frame with two columns and two rows
-  # The first row is the start point, the second row is the finish point
-  # Each transect runs from x = -100 to x = 100, and is at constant height
-  # Transects are stacked vertically, 20 units apart
-  transect_list[[i]] <- data.frame(x = c(-100, 100), y = rep(-100 + (i - 1) * 20, 2))
-}
+# # Create a list to store the transect lines
+# transect_list <- vector("list", 11)
+# for(i in 1:11){
+#   # Start with a data frame with two columns and two rows
+#   # The first row is the start point, the second row is the finish point
+#   # Each transect runs from x = -100 to x = 100, and is at constant height
+#   # Transects are stacked vertically, 20 units apart
+#   transect_list[[i]] <- data.frame(x = -100:100, y = rep(-100 + (i - 1) * 20, 201))
+# }
+# 
+# # Convert to a list of secr transect objects
+# transect_list <- make.transect(transect_list)
 
-# Convert to a list of secr transect objects
-transect_list <- make.transect(transect_list)
+transect_list <- read.traps(file = "transects.txt", detector = "transect")
 
 # Simulate capture history
 capthist <- sim.capthist(traps = transect_list,
