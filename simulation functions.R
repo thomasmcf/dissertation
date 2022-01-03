@@ -143,8 +143,7 @@ population <- function(N, T){
   return(individuals)
 }
 
-# This function calculates the minimum distance from the point (a, b) to the line segment passing through
-# (x0, y0) and (x1, y1)
+# This function calculates the minimum distance from the point (a, b) to the line segment joining (x0, y0) and (x1, y1)
 min_segment_dist <- function(a, b, x0, y0, x1, y1){
   # Calculate the parameter for the point on the segment closest to (a, b)
   t <- - ((x0 - a)*(x1 - x0) + (y0-b)*(y1-y0)) / ((x1-x0)**2 + (y1-y0)**2)
@@ -184,7 +183,7 @@ min_curve_dist <- function(a, b, x, y){
     # Calculate distance from point to segment i
     dist_i <- min_segment_dist(a, b, x[i], y[i], x[i+1], y[i+1])
     
-    # If this distance is less than the current running negative, update the minimum
+    # If this distance is less than the current running minimum, update the minimum
     if(dist_i$dist < min_dist$dist){
       min_dist <- dist_i
     }
@@ -197,7 +196,7 @@ min_curve_dist <- function(a, b, x, y){
 #          x - X coordinates of spline points
 #          y - Y coordinates of spline points
 # population - Simulated Population object
-#       time - The time at which the survey takes place
+#       time - The tim at which visit takes place
 #   detectfn - Detection function to use
 #  detectpar - Parameters of the detection function
 #   occasion - Which occasion is being simulated
@@ -205,29 +204,28 @@ min_curve_dist <- function(a, b, x, y){
 occasion_sim <- function(x, y, population, time, detectfn, detectpar, occasion, session = 1){
   # The number of individuals in the population object
   N <- length(population)
-  # Empty data frame to hold the detection function
+  # Empty data frame to hold the capture history for secr
   history <- data.frame(Session = integer(),
                         AnimalID = integer(),
                         Occasion = integer(),
                         X = double(),
                         Y = double())
   
+  # Empty data frame to hold capture history for survival analysis
   detections <- data.frame(droppingID = character(),
                            time = integer(),
                            type = character())
   
   # Iterate over the population
   for(i in 1:N){
-    # Extract an individual
+    # Extract individual i
     ind <- population[[i]]
-    # Extract the number of droppings produced by this individual
+    # Find the number of droppings produced by this individual
     droppings <- length(ind$drop_times)
     
     # Iterate over each dropping
-    
     for(j in 1:droppings){
-      # Check if the dropping was present at the time of the survey
-      
+      # Check if the dropping was detectable at the time of the survey
       if(ind$drop_times[j] <= time & time <= ind$decay_times[j]){
         # Find the length between the dropping and the transect
         dist <- min_curve_dist(ind$location[1, j], ind$location[2, j], x, y)
@@ -236,8 +234,9 @@ occasion_sim <- function(x, y, population, time, detectfn, detectpar, occasion, 
         # Simulate the detection/non-detection (Bernoulli)
         detect <- rbinom(1, 1, prob)
         
-        # If the dropping was detected, add its information to the capture history
+        # If the dropping was detected record this
         if(detect == 1){
+          # If the dropping had not yet degraded, it is recorded for secr and survival analysis
           if(time <= ind$degrade_times[j]){
             history <- rbind(history,
                              list(Session = session,
@@ -253,12 +252,12 @@ occasion_sim <- function(x, y, population, time, detectfn, detectpar, occasion, 
                                      type = "detected"))
           }
           
+          # If the dropping was degraded but not decayed, it is only recorded for survival
           else{
             detections <- rbind(detections,
-                                list(
-                                  droppingID = ind$drop_id[j],
-                                  time = time,
-                                  type = "degraded"))
+                                list(droppingID = ind$drop_id[j],
+                                     time = time,
+                                     type = "degraded"))
           }
         }
       }
