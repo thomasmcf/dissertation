@@ -70,35 +70,6 @@ beep()
 
 # Sys.time() # End timing
 
-# # Now run a SCR study
-# # Convert the locations to a form usable by secr
-# # This takes the form of a list with one element per individual
-# # Each individual's list element contains a data frame with the x and y coordinates of the droppings present at survey time
-# droppings <- vector("list", 0)
-# N <- length(pop)
-# for(i in 1:N){
-#   ind <- pop[[i]]
-#   
-#   # Identify which (if any) droppings are present at the time of the survey
-#   survived <- which(ind$drop_times <= 365 * 100 & ind$de_times >= 365 * 100)
-#   
-#   # If droppings are present, extract their locations
-#   if(length(survived) > 0){
-#     location <- matrix(ind$location[, survived], nrow = 2)
-#     
-#     droppings <- c(droppings, vector("list", 1))
-#     droppings[[length(droppings)]] <- data.frame(x = location[1, ], y = location[2, ])
-#   }
-# }
-# 
-# # Simulate capture history
-# capthist <- sim.capthist(traps = transect_list,
-#                          popn = droppings,
-#                          detectfn = 'HHN',
-#                          detectpar = list(lambda0 = 0.5, sigma = 50),
-#                          noccasions = 3)
-
-
 lambda <- function(d, lambda0, sigma){
   lambda0 * exp(-d**2 / (2 * sigma**2))
 }
