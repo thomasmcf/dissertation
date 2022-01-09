@@ -1,4 +1,4 @@
-source("simulation.R")
+source("simulation functions.R")
 
 # Simulate the study site for three years, with N expected individuals
 N_exp <- 30
@@ -34,7 +34,7 @@ legend(-100, 100, c("Present", "Departed", "Dropping"),
  
 # Now explore the issue of "prolonged detectability"
 # Define a number of simulations to run, and define vectors to store results
-B <- 30
+B <- 1
 N_present <- numeric(B)
 N_detectable <- numeric(B)
 
@@ -85,7 +85,7 @@ x <- transect_list$x
 y <- transect_list$y
 pars <- list(lambda0 = 0.5, sigma = 50)
 
-capthist <- survey_sim(x, y, pop, c(36500, 36530, 36560))
+capthist <- survey_sim(x, y, pop, seq(36500, 36500 + 12 * 30, 30))
 
 mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
 

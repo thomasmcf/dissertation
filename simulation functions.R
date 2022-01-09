@@ -296,8 +296,43 @@ survey_sim <- function(x, y, population, times, detectfn, detectpar){
   
   detection <- detections %>%
     pivot_wider(id_cols = time, names_from = droppingID, values_from = type, values_fill = "not-detected") %>%
-    t
+    t %>%
+    data.frame
+  
+  colnames(detection) <- detection[1, ]
+  detection <- detection[-1, ]
   
   return(list(secr_capthist = secr_capthist,
               dethist = detection))
+}
+
+make_surv_object <- function(dethist){
+  times <- as.numeric(colnames(dethist))
+  visits <- ncol(dethist)
+  
+  time <- NULL
+  event <- NULL
+  
+  dethist <- dethist %>%
+    filter(apply(dethist, 1, function(row) "detected" %in% row))
+  
+  dethist <- dethist %>%
+    filter(rowSums((dethist == "detected") + (dethist == "degraded")) > 1)
+  
+  droppings <- nrow(dethist)
+  
+  for(i in 1:droppings){
+    t1 <- times[which("detected" == dethist[i, ])[1]]
+    
+    if("degraded" %in% dethist[i, ]){
+      t2 <- times[which("degraded" == dethist[i, ])[1]]
+    }
+    else{
+      t2 <- max(times[which("detected" == dethist[i, ])])
+    }
+    
+    time <- c(time, t2 - t1)
+  }
+  
+  time
 }
