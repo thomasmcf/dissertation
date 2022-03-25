@@ -169,29 +169,6 @@ min_segment_dist <- function(a, b, x0, y0, x1, y1){
               y_min = y_min))
 }
 
-# This function calculates the minimum distance from the point (a, b) to a curve taking the form of
-# a sequence of linear segments
-# x, y are vectors of the points where linear segments start and end
-# E.g. segment one runs from (x[1], y[1]) to (x[2], y[2]), segment two from (x[2], y[2]) to (x[3], y[3]), etc.
-min_curve_dist <- function(a, b, x, y){
-  points <- length(x)
-  
-  # Calculate distance from point to first segment
-  min_dist <- min_segment_dist(a, b, x[1], y[1], x[2], y[2])
-  
-  for(i in 2:(points - 1)){
-    # Calculate distance from point to segment i
-    dist_i <- min_segment_dist(a, b, x[i], y[i], x[i+1], y[i+1])
-    
-    # If this distance is less than the current running minimum, update the minimum
-    if(dist_i$dist < min_dist$dist){
-      min_dist <- dist_i
-    }
-  }
-  
-  return(min_dist)
-}
-
 # Simulate the capture history for one occasion
 #          x - X coordinates of spline points
 #          y - Y coordinates of spline points
@@ -201,9 +178,11 @@ min_curve_dist <- function(a, b, x, y){
 #  detectpar - Parameters of the detection function
 #   occasion - Which occasion is being simulated
 #    session - Which session is being simulated
-occasion_sim <- function(x, y, population, time, detectfn, detectpar, occasion, session = 1){
+occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, occasion, session = 1){
   # The number of individuals in the population object
   N <- length(population)
+  transects <- length(x0)
+  
   # Empty data frame to hold the capture history for secr
   history <- data.frame(Session = integer(),
                         AnimalID = integer(),
@@ -223,41 +202,43 @@ occasion_sim <- function(x, y, population, time, detectfn, detectpar, occasion, 
     # Find the number of droppings produced by this individual
     droppings <- length(ind$drop_times)
     
-    # Iterate over each dropping
-    for(j in 1:droppings){
-      # Check if the dropping was detectable at the time of the survey
-      if(ind$drop_times[j] <= time & time <= ind$decay_times[j]){
-        # Find the length between the dropping and the transect
-        dist <- min_curve_dist(ind$location[1, j], ind$location[2, j], x, y)
-        # Calculate the probability of detection
-        prob <- detectfn(dist$dist, detectpar)
-        # Simulate the detection/non-detection (Bernoulli)
-        detect <- rbinom(1, 1, prob)
-        
-        # If the dropping was detected record this
-        if(detect == 1){
-          # If the dropping had not yet degraded, it is recorded for secr and survival analysis
-          if(time <= ind$degrade_times[j]){
-            history <- rbind(history,
-                             list(Session = session,
-                                  AnimalID = i,
-                                  Occasion = occasion,
-                                  X = dist$x_min,
-                                  Y = dist$y_min))
-            
-            # And the detection history as an identifiable sample
-            detections <- rbind(detections,
-                                list(droppingID = ind$drop_id[j],
-                                     time = time,
-                                     type = "detected"))
-          }
+    for(j in 1:transects){
+      # Iterate over each dropping
+      for(k in 1:droppings){
+        # Check if the dropping was detectable at the time of the survey
+        if(ind$drop_times[k] <= time & time <= ind$decay_times[k]){
+          # Find the length between the dropping and the transect
+          dist <- min_segment_dist(ind$location[1, k], ind$location[2, k], x0[j], y0[j], x1[j], y1[j])
+          # Calculate the probability of detection
+          prob <- detectfn(dist$dist, detectpar)
+          # Simulate the detection/non-detection (Bernoulli)
+          detect <- rbinom(1, 1, prob)
           
-          # If the dropping was degraded but not decayed, it is only recorded for survival
-          else{
-            detections <- rbind(detections,
-                                list(droppingID = ind$drop_id[j],
-                                     time = time,
-                                     type = "degraded"))
+          # If the dropping was detected record this
+          if(detect == 1){
+            # If the dropping had not yet degraded, it is recorded for secr and survival analysis
+            if(time <= ind$degrade_times[k]){
+              history <- rbind(history,
+                               list(Session = session,
+                                    AnimalID = i,
+                                    Occasion = occasion,
+                                    X = dist$x_min,
+                                    Y = dist$y_min))
+              
+              # And the detection history as an identifiable sample
+              detections <- rbind(detections,
+                                  list(droppingID = ind$drop_id[k],
+                                       time = time,
+                                       type = "detected"))
+            }
+            
+            # If the dropping was degraded but not decayed, it is only recorded for survival
+            else{
+              detections <- rbind(detections,
+                                  list(droppingID = ind$drop_id[k],
+                                       time = time,
+                                       type = "degraded"))
+            }
           }
         }
       }
@@ -269,21 +250,18 @@ occasion_sim <- function(x, y, population, time, detectfn, detectpar, occasion, 
 }
 
 # Simulate survey
-survey_sim <- function(x, y, population, times, detectfn, detectpar){
+survey_sim <- function(x0, y0, x1, y1, population, times, detectfn, detectpar){
   n_occasions <- length(times)
-  occ <- occasion_sim(x, y, pop, times[1], HHN, pars, occasion = 1)
+  occ <- occasion_sim(x0, y0, x1, y1, population, times[1], detectfn, detectpar, occasion = 1)
   
   capthist <- occ$capthist
-  detections <- occ$detections
   
   for(t in 2:n_occasions){
-    occ <- occasion_sim(x, y, pop, times[t], HHN, pars, t)
+    occ <- occasion_sim(x0, y0, x1, y1, population, times[t], HHN, pars, t)
     
     capthist <- rbind(capthist,
                       occ$capthist)
-    
-    detections <- rbind(detections,
-                        occ$detections)
+
   }
   
   ids <- cbind(sort(unique(capthist$AnimalID)), 1:length(unique(capthist$AnimalID)))
@@ -294,16 +272,7 @@ survey_sim <- function(x, y, population, times, detectfn, detectpar){
   
   secr_capthist <- make.capthist(capthist, transect_list, fmt="XY")
   
-  detection <- detections %>%
-    pivot_wider(id_cols = time, names_from = droppingID, values_from = type, values_fill = "not-detected") %>%
-    t %>%
-    data.frame
-  
-  colnames(detection) <- detection[1, ]
-  detection <- detection[-1, ]
-  
-  return(list(secr_capthist = secr_capthist,
-              dethist = detection))
+  return(secr_capthist = secr_capthist)
 }
 
 make_surv_object <- function(dethist){
@@ -335,4 +304,12 @@ make_surv_object <- function(dethist){
   }
   
   time
+}
+
+lambda <- function(d, lambda0, sigma){
+  lambda0 * exp(-d**2 / (2 * sigma**2))
+}
+
+HHN <- function(d, pars){
+  1 - exp(-lambda(d, pars$lambda0, pars$sigma))
 }
