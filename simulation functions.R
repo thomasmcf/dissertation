@@ -3,8 +3,6 @@ library(MASS)
 library(tidyverse)
 library(beepr)
 
-setwd("C:/Users/thmcf/Documents/Programming/Maths/Dissertation/dissertation/")
-
 # Mean life time of scat
 MEAN_LIFE <- 365 / 2
 # Mean droppings left per day
@@ -143,6 +141,51 @@ population <- function(N, T){
   return(individuals)
 }
 
+# Determine number of individuals present and detectable in population at time
+pres_det <- function(population, time){
+  N <- length(pop)
+  N_present <- 0
+  N_detectable <- 0
+  
+  for(i in 1:N){
+    ind <- pop[[i]]
+    # If animal j was present at tyears, increment the value in the presence vector
+    if(ind$present[1] <= time & time <= ind$present[2]){
+      N_present <- N_present + 1
+    }
+    
+    # If any of animals j's droppings were present at t=100 years, increment the value in the detectable vector
+    if(any(ind$drop_times <= time & ind$degrade_times >= time)){
+      N_detectable <- N_detectable + 1
+    }
+  }
+  
+  list("present" = N_present, "detectable" = N_detectable)
+}
+
+prune <- function(population, time){
+  N <- length(population)
+  
+  keep <- NULL
+  for(i in 1:N){
+    ind <- population[[i]]
+    
+    if(ind$present[1] <= time & time <= ind$present[2]){
+      keep <- c(keep, i)
+    }
+    else if(any(ind$drop_times <= time & ind$degrade_times >= time)){
+      keep <- c(keep, i)
+    }
+  }
+  
+  new_pop <- vector("list", length(keep))
+  for(i in 1:length(keep)){
+    new_pop[[i]] <- population[[keep[i]]]
+  }
+  
+  return(new_pop)
+}
+
 # This function calculates the minimum distance from the point (a, b) to the line segment joining (x0, y0) and (x1, y1)
 min_segment_dist <- function(a, b, x0, y0, x1, y1){
   # Calculate the parameter for the point on the segment closest to (a, b)
@@ -178,7 +221,7 @@ min_segment_dist <- function(a, b, x0, y0, x1, y1){
 #  detectpar - Parameters of the detection function
 #   occasion - Which occasion is being simulated
 #    session - Which session is being simulated
-occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, occasion, session = 1){
+occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, occasion, session = 1, t0){
   # The number of individuals in the population object
   N <- length(population)
   transects <- length(x0)
@@ -193,7 +236,8 @@ occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, 
   # Empty data frame to hold capture history for survival analysis
   detections <- data.frame(droppingID = character(),
                            time = integer(),
-                           type = character())
+                           type = character(),
+                           present = character())
   
   # Iterate over the population
   for(i in 1:N){
@@ -229,7 +273,8 @@ occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, 
               detections <- rbind(detections,
                                   list(droppingID = ind$drop_id[k],
                                        time = time,
-                                       type = "detected"))
+                                       type = "detected",
+                                       present = ifelse(ind$drop_times[k] <= t0, TRUE, FALSE)))
             }
             
             # If the dropping was degraded but not decayed, it is only recorded for survival
@@ -237,7 +282,8 @@ occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, 
               detections <- rbind(detections,
                                   list(droppingID = ind$drop_id[k],
                                        time = time,
-                                       type = "degraded"))
+                                       type = "degraded",
+                                       present = ifelse(ind$drop_times[k] <= t0, TRUE, FALSE)))
             }
           }
         }
@@ -245,22 +291,29 @@ occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, 
     }
   }
   
+  detections <- detections %>% distinct()
+  
   return(list(capthist = history,
               detections = detections))
 }
 
+
 # Simulate survey
-survey_sim <- function(x0, y0, x1, y1, population, times, detectfn, detectpar){
+survey_sim <- function(x0, y0, x1, y1, population, times, detectfn, detectpar, t0){
   n_occasions <- length(times)
-  occ <- occasion_sim(x0, y0, x1, y1, population, times[1], detectfn, detectpar, occasion = 1)
+  occ <- occasion_sim(x0, y0, x1, y1, population, times[1], detectfn, detectpar, occasion = 1, t0 = t0)
   
   capthist <- occ$capthist
+  survhist <- occ$detections
   
   for(t in 2:n_occasions){
-    occ <- occasion_sim(x0, y0, x1, y1, population, times[t], HHN, pars, t)
+    occ <- occasion_sim(x0, y0, x1, y1, population, times[t], detectfn, detectpar, occasion = t, t0 = t0)
     
     capthist <- rbind(capthist,
                       occ$capthist)
+    
+    survhist <- rbind(survhist,
+                      occ$detections)
 
   }
   
@@ -272,43 +325,81 @@ survey_sim <- function(x0, y0, x1, y1, population, times, detectfn, detectpar){
   
   secr_capthist <- make.capthist(capthist, transect_list, fmt="XY")
   
-  return(secr_capthist = secr_capthist)
+  return(list(secr_capthist = secr_capthist,
+              survhist = survhist))
 }
 
-make_surv_object <- function(dethist){
-  times <- as.numeric(colnames(dethist))
-  visits <- ncol(dethist)
-  
+
+make_surv_object <- function(survhist, t0, times){
   time <- NULL
+  time2 <- NULL
   event <- NULL
   
-  dethist <- dethist %>%
-    filter(apply(dethist, 1, function(row) "detected" %in% row))
+  survhist <- survhist %>%
+    pivot_wider(names_from = time, values_from = type, values_fill = "no detection")
   
-  dethist <- dethist %>%
-    filter(rowSums((dethist == "detected") + (dethist == "degraded")) > 1)
+  survhist <- survhist %>%
+    filter(apply(survhist, 1, function(row) "detected" %in% row))
   
-  droppings <- nrow(dethist)
+  degradation_observed <- apply(survhist, 1, function(row) "degraded" %in% row)
+  detections <- apply(survhist, 1, function(row) sum("detected" == row))
+  
+  survhist <- survhist %>%
+    filter(!(!degradation_observed & !present & detections == 1))
+  
+  degradation_observed <- apply(survhist, 1, function(row) "degraded" %in% row)
+  droppings <- nrow(survhist)
   
   for(i in 1:droppings){
-    t1 <- times[which("detected" == dethist[i, ])[1]]
+    t_init <- times[min(which(survhist[i, ] == "detected")) - 2]
+    t_last <- times[max(which(survhist[i, ] == "detected")) - 2]
     
-    if("degraded" %in% dethist[i, ]){
-      t2 <- times[which("degraded" == dethist[i, ])[1]]
+    if(survhist$present[i]){
+      time <- c(time, t_last - t0)
+      time2 <- c(time2, NA)
+      
+      event <- c(event, 0)
+    }
+    else if(degradation_observed[i]){
+      observations <- sum(survhist[i, ] == "detected")
+      
+      if(observations == 1){
+        t_deg <- times[min(which(survhist[i, ] == "degraded")) - 2]
+        
+        time <- c(time, t_deg - t0)
+        time2 <- c(time2, NA)
+        
+        event <- c(event, 2)
+      }
+      else{
+        t_deg <- times[min(which(survhist[i, ] == "degraded")) - 2]
+        
+        time <- c(time, t_last - t_init)
+        time2 <- c(time2, t_deg - t0)
+        
+        event <- c(event, 3)
+      }
     }
     else{
-      t2 <- max(times[which("detected" == dethist[i, ])])
+      observations <- sum(survhist[i, ] == "detected")
+      
+      if(observations > 1){
+        time <- c(time, t_last - t_init)
+        time2 <- c(time2, NA)
+        
+        event <- c(event, 0)
+      }
     }
-    
-    time <- c(time, t2 - t1)
   }
   
-  time
+  Surv(time = time, time2 = time2, event = event, type = "interval")
 }
+
 
 lambda <- function(d, lambda0, sigma){
   lambda0 * exp(-d**2 / (2 * sigma**2))
 }
+
 
 HHN <- function(d, pars){
   1 - exp(-lambda(d, pars$lambda0, pars$sigma))
