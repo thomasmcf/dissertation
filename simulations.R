@@ -1,4 +1,3 @@
-setwd("C:/Users/thmcf/Documents/Programming/Maths/Dissertation/dissertation")
 source("simulation functions.R")
 
 # Simulate the study site for three years, with N expected individuals
@@ -12,19 +11,19 @@ plot(c(-SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2, SITE_LENGTH/2),
 
 # Iterate over the population
 set.seed(12345)
-N <- length(pop)
+
 for(i in 1:N){
   ind <- pop[[i]]
   # Extract the droppings which are still present at the commencation of the SCR study
-  locations <- matrix(ind$location[, which(ind$decay_times >= 3 * 365)], nrow = 2)
+  locations <- matrix(ind$location[, which(ind$drop_times <= 100 * 365 & ind$decay_times >= 100 * 365)], nrow = 2)
   # Plot these locations
   points(locations[1,], locations[2,], pch = 19, cex = 0.5, col = 'blue')
   
   # Plot the activity centres, green if it's present at the start of the study, red if it is not
-  if(ind$present[2] >= 1095){
+  if(ind$present[1] <= 100 * 365 & ind$present[2] >= 100 * 365){
     points(ind$activity_centre[1], ind$activity_centre[2], pch = 19, cex = 1.5, col = 'green')
   }
-  else{
+  else if(length(locations) > 0){
     points(ind$activity_centre[1], ind$activity_centre[2], pch = 19, cex = 1.5, col = 'red')
   }
 }
@@ -66,24 +65,15 @@ for(i in 1:B){
   # The last year is to avoid the tail behaviour that occurs as the simulation ends
   pop <- population(N_exp, 365 * 101)
   
-  # Iterate over all animals that were present
-  for(j in 1:length(pop)){
-    # If animal j was present at t=100 years, increment the value in the presence vector
-    if(between(365 * 100, pop[[j]]$present[1], pop[[j]]$present[2])){
-      N_present[i] <- N_present[i] + 1
-    }
+  Ns <- pres_det(pop, 365 * 100)
+  N_present[i] <- Ns$present
+  N_detectable[i] <- Ns$detectable
     
-    # If any of animals j's droppings were present at t=100 years, increment the value in the detectable vector
-    if(any(pop[[j]]$drop_times <= 365 * 100 & pop[[j]]$degrade_times >= 365 * 100)){
-      N_detectable[i] <- N_detectable[i] + 1
-    }
-  }
-  
   print(i)
 }
 
-capthist <- survey_sim(x0, y0, x1, y1, pop, times = c(36500, 36530, 36560), HHN, pars)
-mod <- secr.fit(capthist = capthist, buffer = buffer)
+capthist <- survey_sim(x0, y0, x1, y1, pop, times = c(36500, 36600, 36700), HHN, pars, t0=36500-30)
+mod <- secr.fit(capthist = capthist$secr_capthist, mask = mask)
 
 # Plot the results
 #plot(N_present, N_detectable)
