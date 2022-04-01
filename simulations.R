@@ -1,5 +1,7 @@
 source("simulation functions.R")
 
+sims <- read.csv("simulated.csv")
+
 # Simulate the study site for three years, with N expected individuals
 N_exp <- 30
 pop <- population(N_exp, 365 * 101)
@@ -72,7 +74,8 @@ for(i in 1:B){
   print(i)
 }
 
-capthist <- survey_sim(x0, y0, x1, y1, pop, times = c(36500, 36600, 36700), HHN, pars, t0=36500-30)
+times <- c(36500, 36530, 36560)
+capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
 mod <- secr.fit(capthist = capthist$secr_capthist, mask = mask)
 
 # Plot the results
@@ -95,25 +98,32 @@ beep()
 
 
 
-N_present <- numeric(20)
-N_estimated <- numeric(20)
-# Sys.time() # End timing
-for(N_exp in seq(10, 200, 10)){
-  print(paste("Simulation", N_exp / 10))
+N_exp <- seq(30, 100, 2)
+N_pres <- numeric(length(N_exp))
+N_est <- numeric(length(N_exp))
+N_det <- numeric(length(N_exp))
+times <- c(36500, 36530, 36560)
+means <- numeric(length(N_exp))
+
+slope_data <- function(mean_life)
+
+for(i in 1:length(N_est)){
+  print(paste("Simulation", i))
   print("    Simulating population")
-  pop <- population(N_exp, 365 * 101)
+  pop <- population(N_exp[i], 365 * 101)
+  pop <- prune(pop, 36500-30)
   
   print("    Simulating survey")
-  capthist <- survey_sim(x, y, pop, c(36500, 36530, 36560), HHN, pars)
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
   print("    Fitting model")
   mod <- secr.fit(capthist = capthist$secr_capthist, trace=F, mask = mask)
   
-  N_estimated[N_exp / 10] <-  region.N(mod)[2, 1]
+  N_est[i] <-  region.N(mod)[2, 1]
+  N_pres[i] <- pres_det(pop, 36500)$pres
+  N_det[i] <- pres_det(pop, 36500)$det
   
-  for(j in 1:length(pop)){
-    # If animal j was present at t=100 years, increment the value in the presence vector
-    if(between(365 * 100, pop[[j]]$present[1], pop[[j]]$present[2])){
-      N_present[N_exp / 10] <- N_present[N_exp /10] + 1
-    }
-  }
+  print("    Survival Analysing")
+  sv <- make_surv_object(capthist$survhist, 36500-30, times)
 }
+
+
