@@ -52,8 +52,7 @@ y0 <- y[seq(1, 22, 2)]
 x1 <- x[seq(2, 22, 2)]
 y1 <- y[seq(2, 22, 2)]
 
-pars <- list(lambda0 = 1, sigma = 30)
-
+pars <- list(lambda0 = 1, sigma = 1)
 mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
 
 # Sys.time() # Time how long the simulations take

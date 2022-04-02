@@ -247,7 +247,7 @@ occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, 
       # Iterate over each dropping
       for(k in 1:droppings){
         # Check if the dropping was detectable at the time of the survey
-        if(ind$drop_times[k] <= time & time <= ind$decay_times[k]){
+        if(ind$drop_times[k] <= time & time <= ind$degrade_times[k]){
           # Find the length between the dropping and the transect
           dist <- min_segment_dist(ind$location[1, k], ind$location[2, k], x0[j], y0[j], x1[j], y1[j])
           # Calculate the probability of detection
@@ -400,4 +400,3 @@ lambda <- function(d, lambda0, sigma){
 HHN <- function(d, pars){
   1 - exp(-lambda(d, pars$lambda0, pars$sigma))
 }
-

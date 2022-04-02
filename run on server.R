@@ -31,28 +31,50 @@ nb <- 5000
 ni <- 10000 + nb
 nt <- 1
 
+B <- 5
+expected <- numeric(B)
+present <- numeric(B)
+detectable <- numeric(B)
+uncorrected <- numeric(B)
+corrected <- numeric(B)
+median <- numeric(B)
+lcl <- numeric(B)
+ucl <- numeric(B)
 
-pop <- population(30, 365 * 101) %>% prune(36500 - 30)
-capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
-mod <- secr.fit(capthist = capthist$secr_capthist, mask = mask)
+for(i in 1:B){
+  N_exp <- 30
+  pop <- population(30, 365 * 101, MEAN_LIFE)
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
+  # mod <- secr.fit(capthist = capthist$secr_capthist, mask = mask)
+  # 
+  # jagsdat <- list(N = nrow(dat),
+  #                 present = dat$N_pres,
+  #                 estimated = dat$N_est,
+  #                 point_est = region.N(mod)[2, 1],
+  #                 std_error = region.N(mod)[2, 2])
+  # 
+  # out <- jags(data = jagsdat,
+  #             inits = inits,
+  #             parameters.to.save = monitor,
+  #             model.file = "model.txt",
+  #             n.chains = nc,
+  #             n.iter = ni,
+  #             n.burnin = nb,
+  #             n.thin = nt)
+  # 
+  expected[i] <- N_exp
+  present[i] <- pres_det(pop, 36500 - 30)$pres
+  detectable[i] <- pres_det(pop, 36500 - 30)$det
+  # uncorrected[i] <- jagsdat$point_est
+  # corrected[i] <- out$mean$corrected
+  # median[i] <- out$q50$corrected
+  # lcl[i] <- out$q2.5$corrected
+  # ucl[i] <- out$q97.5$corrected
+  uncorrected[i] <- survreg(make_surv_object(capthist$survhist, 36500-30, times) ~ 1) %>% predict()[1]
+}
 
-jagsdat <- list(N = nrow(dat),
-                present = dat$N_pres,
-                estimated = dat$N_est,
-                point_est = region.N(mod)[2, 1],
-                std_error = region.N(mod)[2, 2])
+plot(present, corrected, ylim = range(lcl, ucl))
+segments(present, lcl, present, ucl)
+abline(0, 1)
 
-out <- jags(data = jagsdat,
-            inits = inits,
-            parameters.to.save = monitor,
-            model.file = "model.txt",
-            n.chains = nc,
-            n.iter = ni,
-            n.burnin = nb,
-            n.thin = nt)
-
-hist(out$sims.list$corrected)
-abline(v = pres_det(pop, 36500)$pres)
-quantile(out$sims.list$corrected, c(0.025, 0.5, 0.975))
-pres_det(pop, 36500)$pres
-
+beep()
