@@ -77,9 +77,9 @@ queue <- function(N, T){
                             departure = double())
   
   # Generate the time at which the next individual moves into the area
-  # The shape paramater is adjusted in order to specify the stationary expectation
+  # The shape parameter is adjusted in order to specify the stationary expectation
   latest <- rgamma(1, shape / N, rate)
-  # Simulate arrival times until the simlation period has elapsed
+  # Simulate arrival times until the simulation period has elapsed
   while(latest < T){
     # Draw the new arrival's length of stay, and append this to the data frame
     stay_time <- rgamma(1, shape, rate)
