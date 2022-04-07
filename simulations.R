@@ -57,6 +57,7 @@ getDoParWorkers()
 N_expected <- 1:200
 B <- length(N_expected)
 
+print("Simulation 1...")
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr")) %dopar% {
   N_exp <- N_expected[i]
   pop <- prune(population(N_exp, 365 * 101), 36500 - 30)
@@ -81,6 +82,7 @@ saveRDS(df, "exp_pres_det_est.rds")
 
 
 # Simulate populations with different mean dropping life time
+print("Simulation 2...")
 mean_lifes <- seq(1, 365, 365)
 B <- length(mean_life)
 
@@ -113,6 +115,7 @@ saveRDS(df, "dropping_life.rds")
 
 
 # Simulate populations with different dropping rates
+print("Simulation 3...")
 dropping_rate <- seq(1/7, 2, 50)
 B <- length(dropping_rate)
 
@@ -145,6 +148,7 @@ saveRDS(df, "drop_rate.rds")
 
 
 # Simulate populations with different turnover rates
+print("Simulation 4...")
 mean_stays <- seq(30, 365 * 2, 50)
 B <- length(mean_stays)
 
