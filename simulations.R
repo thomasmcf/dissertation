@@ -1,38 +1,5 @@
 source("simulation functions.R")
 
-# Simulate the study site for three years, with N expected individuals
-pop <- population(30, 365 * 101)
-N <- length(pop)
-
-# Create a blank plot - this will eventually show the spatial locations of activity centres and droppings
-plot(c(-SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2, SITE_LENGTH/2),
-     c(-SITE_LENGTH/2, SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2),
-     type = 'n', xlab = "Longitude", ylab = "Latitude")
-
-# Iterate over the population
-set.seed(12345)
-
-for(i in 1:N){
-  ind <- pop[[i]]
-  # Extract the droppings which are still present at the commencation of the SCR study
-  locations <- matrix(ind$location[, which(ind$drop_times <= 100 * 365 & ind$decay_times >= 100 * 365)], nrow = 2)
-  # Plot these locations
-  points(locations[1,], locations[2,], pch = 19, cex = 0.5, col = 'blue')
-
-  # Plot the activity centres, green if it's present at the start of the study, red if it is not
-  if(ind$present[1] <= 100 * 365 & ind$present[2] >= 100 * 365){
-    points(ind$activity_centre[1], ind$activity_centre[2], pch = 19, cex = 1.5, col = 'green')
-  }
-  else if(length(locations) > 0){
-    points(ind$activity_centre[1], ind$activity_centre[2], pch = 19, cex = 1.5, col = 'red')
-  }
-}
-
-# Add a legend
-legend(-100, 100, c("Present", "Departed", "Dropping"),
-       col = c('green', 'red', 'blue'),
-       pch = 19)
-
 transect_list <- read.traps(file = "transects.txt", detector = "transect")
 x <- transect_list$x
 y <- transect_list$y
@@ -51,12 +18,13 @@ cl <- makeCluster(20)
 registerDoParallel(cl)
 getDoParWorkers()
 
-
 # Simulate populations of different abundances - with surveys
+set.seed(12345)
+Sys.time()
+
 N_expected <- 1:200
 B <- length(N_expected)
 
-print("Simulation 1...")
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr")) %dopar% {
   N_exp <- N_expected[i]
   pop <- prune(population(N_exp, 365 * 101), 36500 - 30)
@@ -77,27 +45,33 @@ df <- data.frame(expected = sapply(output, function(item) item$expected),
                  estimated = sapply(output, function(item) item$estimated))
 
 saveRDS(df, "exp_pres_det_est.rds")
-
+Sys.time()
 
 
 # Simulate populations with different mean dropping life time
 print("Simulation 2...")
-mean_lifes <- seq(1, 365, length.out = 200)
+set.seed(67890)
+mean_lifes <- 1:365
 B <- length(mean_lifes)
 
-output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
+output <- foreach(i = 1:B,  .packages = c("tidyverse", "secr")) %dopar% {
   mean_life <- mean_lifes[i]
   pop <- population(30, 365 * 101, mean_life = mean_life)
   
   detectable_times <- sapply(pop,
-                                  function(ind) max(ind$degrade_times) - min(ind$drop_times))
+                             function(ind) max(ind$degrade_times) - min(ind$drop_times))
   
   mean_detectable_time <- mean(detectable_times)
   se <- sd(detectable_times) / sqrt(length(detectable_times))
   
   slope <- mean_detectable_time / (MEAN_STAY + (1 / DROP_RATE))
   
-  list(mean_life = mean_life,
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
+  mod <- secr::secr.fit(capthist = capthist$secr_capthist, mask = mask)
+  
+  list(estimated = region.N(mod)[2, 1],
+       present = pres_det(pop, 36500-30)$pres,
+       mean_life = mean_life,
        mean_detectable_time = mean_detectable_time,
        se = se,
        slope = slope
@@ -107,18 +81,22 @@ output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
 df <- data.frame(mean_life = sapply(output, function(item) item$mean_life),
                  mean_detectable_time = sapply(output, function(item) item$mean_detectable_time),
                  se = sapply(output, function(item) item$se),
-                 slope = sapply(output, function(item) item$slope))
+                 slope = sapply(output, function(item) item$slope),
+                 present = sapply(output, function(item) item$present),
+                 estimated = sapply(output, function(item) item$estimated))
 
 saveRDS(df, "dropping_life.rds")
+Sys.time()
 
 
 
 # Simulate populations with different dropping rates
 print("Simulation 3...")
+set.seed(10111)
 dropping_rate <- seq(1/7, 2, length.out = 200)
 B <- length(dropping_rate)
 
-output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
+output <- foreach(i = 1:B,  .packages = c("tidyverse", "secr")) %dopar% {
   drop_rate <- dropping_rate[i]
   pop <- population(30, 365 * 101, drop_rate = drop_rate)
   
@@ -130,28 +108,35 @@ output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
   
   slope <- mean_detectable_time / (MEAN_STAY + (1 / drop_rate))
   
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
+  mod <- secr::secr.fit(capthist = capthist$secr_capthist, mask = mask)
+  
   list(drop_rate = drop_rate,
        mean_detectable_time = mean_detectable_time,
        se = se,
-       slope = slope
+       slope = slope,
+       estimated = region.N(mod)[2, 1]
   )
 }
 
 df <- data.frame(drop_rate = sapply(output, function(item) item$drop_rate),
                  mean_detectable_time = sapply(output, function(item) item$mean_detectable_time),
                  se = sapply(output, function(item) item$se),
-                 slope = sapply(output, function(item) item$slope))
+                 slope = sapply(output, function(item) item$slope),
+                 estimated = sapply(output, function(item) item$estimated))
 
 saveRDS(df, "drop_rate.rds")
+Sys.time()
 
 
 
 # Simulate populations with different turnover rates
 print("Simulation 4...")
+set.seed(12134)
 mean_stays <- seq(365, 365 * 2, length.out = 200)
 B <- length(mean_stays)
 
-output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
+output <- foreach(i = 1:B,  .packages = c("tidyverse", "secr")) %dopar% {
   mean_stay <- mean_stays[i]
   pop <- population(30, 365 * 101, mean_stay = mean_stay)
   
@@ -163,16 +148,23 @@ output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
   
   slope <- mean_detectable_time / (mean_stay + (1 / DROP_RATE))
   
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, HHN, pars, t0=36500-30)
+  mod <- secr::secr.fit(capthist = capthist$secr_capthist, mask = mask)
+  
   list(mean_stay = mean_stay,
        mean_detectable_time = mean_detectable_time,
        se = se,
-       slope = slope
+       slope = slope,
+       estimated = region.N(mod)[2, 1]
   )
 }
 
 df <- data.frame(mean_stay = sapply(output, function(item) item$mean_stay),
                  mean_detectable_time = sapply(output, function(item) item$mean_detectable_time),
                  se = sapply(output, function(item) item$se),
-                 slope = sapply(output, function(item) item$slope))
+                 slope = sapply(output, function(item) item$slope),
+                 estimated = sapply(output, function(item) item$estimated))
 
 saveRDS(df, "mean_stay.rds")
+stopCluster(cl)
+Sys.time()
