@@ -176,4 +176,4 @@ df <- data.frame(mean_stay = sapply(output, function(item) item$mean_stay),
                  se = sapply(output, function(item) item$se),
                  slope = sapply(output, function(item) item$slope))
 
-saveRDS(df, "drop_rate.rds")
+saveRDS(df, "mean_stay.rds")
