@@ -1,9 +1,8 @@
 source("simulation functions.R")
 
-sims <- read.csv("simulated.csv")
-
 # Simulate the study site for three years, with N expected individuals
 pop <- population(30, 365 * 101)
+N <- length(pop)
 
 # Create a blank plot - this will eventually show the spatial locations of activity centres and droppings
 plot(c(-SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2, SITE_LENGTH/2),
@@ -48,7 +47,7 @@ mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
 times <- c(36500, 36530, 36560)
 
 
-cl <- makeCluster(2)
+cl <- makeCluster(20)
 registerDoParallel(cl)
 getDoParWorkers()
 
@@ -75,7 +74,7 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr")) %dopar% {
 df <- data.frame(expected = sapply(output, function(item) item$expected),
                  present = sapply(output, function(item) item$present),
                  detectable = sapply(output, function(item) item$detectable),
-                 estimated = sapply(output, function(item) item$esimated))
+                 estimated = sapply(output, function(item) item$estimated))
 
 saveRDS(df, "exp_pres_det_est.rds")
 
@@ -83,12 +82,12 @@ saveRDS(df, "exp_pres_det_est.rds")
 
 # Simulate populations with different mean dropping life time
 print("Simulation 2...")
-mean_lifes <- seq(1, 365, 365)
-B <- length(mean_life)
+mean_lifes <- seq(1, 365, length.out = 200)
+B <- length(mean_lifes)
 
 output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
   mean_life <- mean_lifes[i]
-  pop <- population(N_exp, 365 * 101, mean_life = mean_life)
+  pop <- population(30, 365 * 101, mean_life = mean_life)
   
   detectable_times <- sapply(pop,
                                   function(ind) max(ind$degrade_times) - min(ind$drop_times))
@@ -116,12 +115,12 @@ saveRDS(df, "dropping_life.rds")
 
 # Simulate populations with different dropping rates
 print("Simulation 3...")
-dropping_rate <- seq(1/7, 2, 50)
+dropping_rate <- seq(1/7, 2, length.out = 200)
 B <- length(dropping_rate)
 
 output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
   drop_rate <- dropping_rate[i]
-  pop <- population(N_exp, 365 * 101, drop_rate = drop_rate)
+  pop <- population(30, 365 * 101, drop_rate = drop_rate)
   
   detectable_times <- sapply(pop,
                              function(ind) max(ind$degrade_times) - min(ind$drop_times))
@@ -149,12 +148,12 @@ saveRDS(df, "drop_rate.rds")
 
 # Simulate populations with different turnover rates
 print("Simulation 4...")
-mean_stays <- seq(30, 365 * 2, 50)
+mean_stays <- seq(365, 365 * 2, length.out = 200)
 B <- length(mean_stays)
 
 output <- foreach(i = 1:B, .packages = "tidyverse") %dopar% {
   mean_stay <- mean_stays[i]
-  pop <- population(N_exp, 365 * 101, mean_stay = mean_stay)
+  pop <- population(30, 365 * 101, mean_stay = mean_stay)
   
   detectable_times <- sapply(pop,
                              function(ind) max(ind$degrade_times) - min(ind$drop_times))
