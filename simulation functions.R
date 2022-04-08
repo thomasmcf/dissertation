@@ -1,6 +1,5 @@
 library(secr)
 library(tidyverse)
-library(beepr)
 library(survival)
 library(jagsUI)
 library(foreach)
