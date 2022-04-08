@@ -1,4 +1,5 @@
-library(ggplot2)
+library(tidyverse)
+library(gridExtra)
 
 set.seed(12345)
 pop <- population(30, 365 * 101)
@@ -30,15 +31,98 @@ legend(-100, 100, c("Present", "Departed", "Dropping"),
        col = c('green', 'red', 'blue'),
        pch = 19)
 
-plot <- ggplot() +
-  geom_point(aes(x = N_present, y = N_detectable)) +
-  geom_abline(slope = 1, intercept = 0) +
-  xlab("Leopards Present") +
-  ylab("Leopards Detectable") +
+
+# EXP PRES DET EST
+df <- readRDS("exp_pres_det_est.rds")
+
+set.seed(52341)
+pop <- population(30, 36500)
+detectable_times <- sapply(pop,
+                           function(ind) max(ind$degrade_times) - min(ind$drop_times))
+
+mean_detectable_time <- mean(detectable_times)
+slope <- mean_detectable_time / (365 + 2)
+
+plot_df <- with(df, data.frame(Y = c(detectable, estimated),
+                               Type = rep(c("Detectable", "Estimated"), c(200, 200)),
+                               X = rep(present, 2)))
+
+ggplot(plot_df) + geom_point(aes(x = X, y = Y, col = Type), size = 2.25) +
+  geom_segment(aes(x = 0, xend = max(X), y = 0, yend = max(X)), size = 1) +
+  geom_segment(aes(x = 0, xend = max(X), y = 0, yend = slope * max(X)), size = 1, linetype = 2) +
+  xlab("Leopards Present") + 
+  ylab("Leopards Estimated") + 
+  theme_bw() +
+  scale_x_continuous(expand = c(0.025, 0.025)) +
+  scale_y_continuous(expand = c(0.025, 0.025)) +
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = 'black'))
+
+# Mean dropping life time
+df <- readRDS("dropping_life.rds")
+
+p1 <- ggplot(df) + geom_point(aes(x = mean_life, y = mean_detectable_time)) +
+  xlab("Mean Dropping Lifetime") +
+  ylab("Mean Time Detectable") +
   theme_bw() +
   theme(axis.text=element_text(size=15),
         axis.title=element_text(size=15),
         panel.border = element_blank(),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = 'black'))
+
+p2 <- ggplot(df) + geom_point(aes(x = mean_life, y = estimated)) +
+  xlab("Mean Dropping Lifetime") +
+  ylab("Estimated Abundance") +
+  theme_bw() +
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = 'black'))
+
+grid.arrange(p1, p2)
+
+# Dropping deposition rate
+df <- readRDS("drop_rate.rds")
+
+p1 <- ggplot(df) + geom_point(aes(x = drop_rate, y = mean_detectable_time)) +
+  xlab("Dropping Deposition Rate") +
+  ylab("Mean Time Detectable") +
+  theme_bw() +
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = 'black'))
+
+p2 <- ggplot(df) + geom_point(aes(x = drop_rate, y = estimated)) +
+  xlab("Dropping Deposition Rate") +
+  ylab("Estimated Abundance") +
+  theme_bw() +
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = 'black'))
+
+grid.arrange(p1, p2)
+
+# Mean Stay Time
+df <- readRDS("mean_stay.rds")
+
+p1 <- ggplot(df) + geom_point(aes(x = mean_stay, y = mean_detectable_time)) +
+  xlab("Mean Stay") +
+  ylab("Mean Time Detectable") +
+  theme_bw() +
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = 'black'))
+
+p2 <- ggplot(df) + geom_point(aes(x = mean_stay, y = estimated)) +
+  xlab("Mean Stay") +
+  ylab("Estimated Abundance") +
+  theme_bw() +
+  theme(axis.text=element_text(size=15),
+        axis.title=element_text(size=15),
+        panel.border = element_blank(),
         axis.line = element_line(colour = 'black'))
