@@ -14,12 +14,12 @@ mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
 times <- c(36500, 36530, 36560)
 
 
-cl <- makeCluster(20)
+cl <- makeCluster(15)
 registerDoParallel(cl)
 getDoParWorkers()
 
 # Simulate populations of different abundances - with surveys
-set.seed(12345)
+set.seed(012345)
 Sys.time()
 
 N_expected <- 1:200
@@ -45,7 +45,13 @@ df <- data.frame(expected = sapply(output, function(item) item$expected),
                  estimated = sapply(output, function(item) item$estimated))
 
 saveRDS(df, "exp_pres_det_est.rds")
+
+detectable_times <- sapply(pop, function(ind) max(ind$degrade_times) - min(ind$drop_times))
+slope <- mean(detectable_times) / (MEAN_STAY + 1/DROP_RATE)
+plot(df$present, df$detectable)
+abline(0, slope)
 Sys.time()
+beep()
 
 
 # Simulate populations with different mean dropping life time
