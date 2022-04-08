@@ -2,7 +2,7 @@ library(tidyverse)
 library(gridExtra)
 
 set.seed(12345)
-pop <- population(30, 365 * 101)
+pop <- population(30, 365 * 101, mean_stay = 365, drop_rate = 0.5, mean_life = 365 / 2)
 N <- length(pop)
 
 # Create a blank plot - this will eventually show the spatial locations of activity centres and droppings
@@ -13,7 +13,7 @@ plot(c(-SITE_LENGTH/2, SITE_LENGTH/2, -SITE_LENGTH/2, SITE_LENGTH/2),
 for(i in 1:N){
   ind <- pop[[i]]
   # Extract the droppings which are still present at the commencation of the SCR study
-  locations <- matrix(ind$location[, which(ind$drop_times <= 100 * 365 & ind$decay_times >= 100 * 365)], nrow = 2)
+  locations <- matrix(ind$location[, which(ind$drop_times <= 100 * 365 & ind$degrade_times >= 100 * 365)], nrow = 2)
   # Plot these locations
   points(locations[1,], locations[2,], pch = 19, cex = 0.5, col = 'blue')
   
@@ -126,3 +126,5 @@ p2 <- ggplot(df) + geom_point(aes(x = mean_stay, y = estimated)) +
         axis.title=element_text(size=15),
         panel.border = element_blank(),
         axis.line = element_line(colour = 'black'))
+
+grid.arrange(p1, p2)
