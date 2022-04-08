@@ -37,8 +37,8 @@ individual <- function(arrived, left, mean_life, drop_rate, id){
   activity_centre <- runif(2, -SITE_LENGTH/2, SITE_LENGTH/2)
   # Simulate the location of the droppings
   # The coordinates are independent normal random variables centered on the activity centre
-  location_x <- rnorm(droppings, activity_centre[1], RANGE)
-  location_y <- rnorm(droppings, activity_centre[2], RANGE)
+  location_x <- rnorm(droppings, activity_centre[1], sqrt(RANGE))
+  location_y <- rnorm(droppings, activity_centre[2], sqrt(RANGE))
   
   location <- rbind(location_x, location_y)
   # Generate an ID for each dropping, used to uniquely identify them
