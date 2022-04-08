@@ -1,6 +1,8 @@
 library(tidyverse)
 library(gridExtra)
 
+source("simulation functions.R")
+
 set.seed(12345)
 pop <- population(30, 365 * 101, mean_stay = 365, drop_rate = 0.5, mean_life = 365 / 2)
 N <- length(pop)
