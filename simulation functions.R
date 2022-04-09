@@ -22,14 +22,14 @@ RANGE <- 50
 #          present         - The time interval the individual was present for
 #          drop_times      - The times a dropping was created by the individual
 #          surv_times      - The "survival" time of the droppings, which is the time the dropping lasts until degrading beyond genotyping
-#          degrade_times   - The time at which the dropping degrades beyond genotyping
+#          decay_times   - The time at which the dropping degrades beyond genotyping
 #                       id - Individual identifier
 individual <- function(arrived, left, mean_life, drop_rate, id){
   # Simulate the dropping, survival, and decay times as defined above
   droppings <- rpois(1, drop_rate * (left - arrived))
   drop_times <- runif(droppings, arrived, left)
   surv_times <- rexp(droppings, 1 / mean_life)
-  degrade_times <- drop_times + surv_times
+  decay_times <- drop_times + surv_times
 
   # Simulate the activity centre of the individual
   # The coordinates are modelled as independent uniform random variables, centred on (0, 0)
@@ -48,7 +48,7 @@ individual <- function(arrived, left, mean_life, drop_rate, id){
               present = c(arrived, left),
               drop_times = drop_times,
               surv_times = surv_times,
-              degrade_times = degrade_times,
+              decay_times = decay_times,
               location = location,
               id = id,
               drop_id = drop_id))
@@ -147,7 +147,7 @@ pres_det <- function(population, time){
     }
     
     # If any of animals j's droppings were present at t=100 years, increment the value in the detectable vector
-    if(any(ind$drop_times <= time & time <= ind$degrade_times)){
+    if(any(ind$drop_times <= time & time <= ind$decay_times)){
       N_detectable <- N_detectable + 1
     }
   }
@@ -165,7 +165,7 @@ prune <- function(population, time){
     if(ind$present[1] <= time & time <= ind$present[2]){
       keep <- c(keep, i)
     }
-    else if(any(ind$drop_times <= time & ind$degrade_times >= time)){
+    else if(any(ind$drop_times <= time & ind$decay_times >= time)){
       keep <- c(keep, i)
     }
   }
@@ -209,27 +209,25 @@ min_segment_dist <- function(a, b, x0, y0, x1, y1){
 #          y - Y coordinates of spline points
 # population - Simulated Population object
 #       time - The tim at which visit takes place
-#   detectfn - Detection function to use
-#  detectpar - Parameters of the detection function
 #   occasion - Which occasion is being simulated
 #    session - Which session is being simulated
-occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, occasion, session = 1, t0){
+occasion_sim <- function(x0, y0, x1, y1, population, time, occasion, session = 1, t0){
   # The number of individuals in the population object
   N <- length(population)
   transects <- length(x0)
   
   # Empty data frame to hold the capture history for secr
-  history <- data.frame(Session = integer(),
-                        AnimalID = integer(),
-                        Occasion = integer(),
-                        X = double(),
-                        Y = double())
+  capthist <- data.frame(Session = integer(),
+                         AnimalID = integer(),
+                         Occasion = integer(),
+                         X = double(),
+                         Y = double())
   
   # Empty data frame to hold capture history for survival analysis
-  detections <- data.frame(droppingID = character(),
-                           time = integer(),
-                           type = character(),
-                           present = character())
+  survhist <- data.frame(droppingID = character(),
+                         time = integer(),
+                         type = character(),
+                         present = character())
   
   # Iterate over the population
   for(i in 1:N){
@@ -242,87 +240,82 @@ occasion_sim <- function(x0, y0, x1, y1, population, time, detectfn, detectpar, 
       # Iterate over each dropping
       for(k in 1:droppings){
         # Check if the dropping was detectable at the time of the survey
-        if(ind$drop_times[k] <= time & time <= ind$degrade_times[k]){
+        if(ind$drop_times[k] <= time){
           # Find the length between the dropping and the transect
           dist <- min_segment_dist(ind$location[1, k], ind$location[2, k], x0[j], y0[j], x1[j], y1[j])
           # Calculate the probability of detection
-          prob <- detectfn(dist$dist, detectpar)
+          prob <- HHN(dist$dist)
           # Simulate the detection/non-detection (Bernoulli)
           detect <- rbinom(1, 1, prob)
           
           # If the dropping was detected record this
           if(detect == 1){
-            # If the dropping had not yet degraded, it is recorded for secr and survival analysis
-            if(time <= ind$degrade_times[k]){
-              history <- rbind(history,
-                               list(Session = session,
-                                    AnimalID = i,
-                                    Occasion = occasion,
-                                    X = dist$x_min,
-                                    Y = dist$y_min))
-              
-              # And the detection history as an identifiable sample
-              detections <- rbind(detections,
-                                  list(droppingID = ind$drop_id[k],
-                                       time = time,
-                                       type = "detected",
-                                       present = ifelse(ind$drop_times[k] <= t0, TRUE, FALSE)))
+            # If the dropping had not yet degraded, it is recorded for secr
+            if(time <= ind$decay_times[k]){
+              capthist <- rbind(capthist,
+                                list(Session = session,
+                                     AnimalID = i,
+                                     Occasion = occasion,
+                                     X = dist$x_min,
+                                     Y = dist$y_min))
             }
             
-            # If the dropping was degraded but not decayed, it is only recorded for survival
-            else{
-              detections <- rbind(detections,
-                                  list(droppingID = ind$drop_id[k],
-                                       time = time,
-                                       type = "degraded",
-                                       present = ifelse(ind$drop_times[k] <= t0, TRUE, FALSE)))
-            }
+            survhist <- rbind(survhist,
+                              list(droppingID = ind$drop_id[k],
+                                   time = time,
+                                   type = ifelse(time <= ind$decay_times[k], "detected", "degraded"),
+                                   present = ifelse(ind$drop_times[k] <= t0, TRUE, FALSE)))
           }
         }
       }
     }
   }
   
-  detections <- detections %>% distinct()
+  survhist <- distinct(survhist)
   
-  return(list(capthist = history,
-              detections = detections))
-}
-
-
-# Simulate survey
-survey_sim <- function(x0, y0, x1, y1, population, times, detectfn, detectpar, t0){
-  n_occasions <- length(times)
-  occ <- occasion_sim(x0, y0, x1, y1, population, times[1], detectfn, detectpar, occasion = 1, t0 = t0)
-  
-  capthist <- occ$capthist
-  survhist <- occ$detections
-  
-  for(t in 2:n_occasions){
-    occ <- occasion_sim(x0, y0, x1, y1, population, times[t], detectfn, detectpar, occasion = t, t0 = t0)
-    
-    capthist <- rbind(capthist,
-                      occ$capthist)
-    
-    survhist <- rbind(survhist,
-                      occ$detections)
-
-  }
-  
-  ids <- cbind(sort(unique(capthist$AnimalID)), 1:length(unique(capthist$AnimalID)))
-  
-  for(i in 1:nrow(capthist)){
-    capthist[i, "AnimalID"] <- ids[which(ids[, 1] == capthist[i, "AnimalID"]), 2]
-  }
-  
-  secr_capthist <- make.capthist(capthist, transect_list, fmt="XY")
-  
-  return(list(secr_capthist = secr_capthist,
+  return(list(capthist = capthist,
               survhist = survhist))
 }
 
 
-make_surv_object <- function(survhist, t0, times){
+# Simulate survey
+survey_sim <- function(x0, y0, x1, y1, population, times, t0){
+  n_occasions <- length(times)
+  occasion <- occasion_sim(x0, y0, x1, y1, population, times[1], occasion = 1, t0 = t0)
+  
+  capthist <- occasion$capthist
+  survhist <- occasion$survhist
+  
+  for(t in 2:n_occasions){
+    occasion <- occasion_sim(x0, y0, x1, y1, population, times[t], occasion = t, t0 = t0)
+    
+    capthist <- rbind(capthist,
+                      occasion$capthist)
+    
+    survhist <- rbind(survhist,
+                      occasion$survhist)
+    
+  }
+  
+  captured_ids <- unique(capthist$AnimalID)
+  ids <- cbind(sort(captured_ids), 1:length(captured_ids))
+  
+  for(i in 1:nrow(capthist)){
+    old_id <- capthist[i, "AnimalID"]
+    new_id <- ids[which(ids[, 1] == old_id), 2]
+    
+    capthist[i, "AnimalID"] <- new_id
+  }
+  
+  capthist <- make.capthist(capthist, transect_list, fmt="XY")
+  survhist <- make.surv(survhist, t0, times)
+  
+  return(list(capthist = capthist,
+              survhist = survhist))
+}
+
+
+make.surv <- function(survhist, t0, times){
   time <- NULL
   time2 <- NULL
   event <- NULL
@@ -417,6 +410,6 @@ lambda <- function(d, lambda0, sigma){
 }
 
 
-HHN <- function(d, pars){
-  1 - exp(-lambda(d, pars$lambda0, pars$sigma))
+HHN <- function(d, lambda0 = 1, sigma = 1){
+  1 - exp(-lambda(d, lambda0, sigma))
 }
