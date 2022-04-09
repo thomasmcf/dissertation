@@ -316,64 +316,69 @@ survey_sim <- function(x0, y0, x1, y1, population, times, t0){
 
 
 make.surv <- function(survhist, t0, times){
-  time <- NULL
-  time2 <- NULL
-  event <- NULL
-  
   survhist <- survhist %>%
     pivot_wider(names_from = time, values_from = type, values_fill = "no detection")
   
   survhist <- survhist %>%
-    filter(apply(survhist, 1, function(row) "detected" %in% row))
+    mutate(degradation_observed = apply(survhist, 1, function(row) "degraded" %in% row),
+           detections = apply(survhist, 1, function(row) sum("detected" == row))) %>%
+    filter(!(present & detections == 0))%>%
+    filter(!(!present & !degradation_observed & (detections == 1)))
   
-  degradation_observed <- apply(survhist, 1, function(row) "degraded" %in% row)
-  detections <- apply(survhist, 1, function(row) sum("detected" == row))
-  
-  survhist <- survhist %>%
-    filter(!(!degradation_observed & !present & detections == 1))
-  
-  degradation_observed <- apply(survhist, 1, function(row) "degraded" %in% row)
   droppings <- nrow(survhist)
   
+  time <- numeric(droppings)
+  time2 <- numeric(droppings)
+  event <- numeric(droppings)
+  
   for(i in 1:droppings){
-    t_init <- times[min(which(survhist[i, ] == "detected")) - 2]
-    t_last <- times[max(which(survhist[i, ] == "detected")) - 2]
-    
     if(survhist$present[i]){
-      time <- c(time, t_last - t0)
-      time2 <- c(time2, NA)
+      t_last <- times[max(which(survhist[i, ] == "detected")) - 2]
       
-      event <- c(event, 0)
+      time[i] <- t_last - t0
+      time2[i] <- NA
+      
+      event[i] <- 0
     }
-    else if(degradation_observed[i]){
-      observations <- sum(survhist[i, ] == "detected")
+    
+    else if(survhist$degradation_observed[i]){
+      t_deg <- times[min(which(survhist[i, ] == "degraded")) - 2]
       
-      if(observations == 1){
-        t_deg <- times[min(which(survhist[i, ] == "degraded")) - 2]
+      if(survhist$detections[i] == 0){
+        time[i] <- t_deg - t0
+        time2[i] <- NA
         
-        time <- c(time, t_deg - t0)
-        time2 <- c(time2, NA)
-        
-        event <- c(event, 2)
+        event[i] <- 2
       }
+      
       else{
-        t_deg <- times[min(which(survhist[i, ] == "degraded")) - 2]
+        t_init <- times[min(which(survhist[i, ] == "detected")) - 2]
+        t_last <- times[max(which(survhist[i, ] == "detected")) - 2]
         
-        time <- c(time, t_last - t_init)
-        time2 <- c(time2, t_deg - t0)
+        if(t_init == t_last){
+          time[i] <- t_deg
+          time2[i] <- NA
+          
+          event[i] <- 2
+        }
         
-        event <- c(event, 3)
+        else{
+          time[i] <- t_last - t_init
+          time2[i] <- t_deg - t0
+          
+          event[i] <- 3 
+        }
       }
     }
+    
     else{
-      observations <- sum(survhist[i, ] == "detected")
+      t_init <- times[min(which(survhist[i, ] == "detected")) - 2]
+      t_last <- times[max(which(survhist[i, ] == "detected")) - 2]
       
-      if(observations > 1){
-        time <- c(time, t_last - t_init)
-        time2 <- c(time2, NA)
-        
-        event <- c(event, 0)
-      }
+      time[i] <- t_last - t_init
+      time2[i] <- NA
+      
+      event[i] <- 0
     }
   }
   
@@ -408,7 +413,6 @@ HPDI <- function(x, p){
 lambda <- function(d, lambda0, sigma){
   lambda0 * exp(-d**2 / (2 * sigma**2))
 }
-
 
 HHN <- function(d, lambda0 = 1, sigma = 1){
   1 - exp(-lambda(d, lambda0, sigma))
