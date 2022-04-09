@@ -37,8 +37,6 @@ legend(-100, 100, c("Present", "Departed", "Dropping"),
 # EXP PRES DET EST
 df <- readRDS("exp_pres_det_est.rds")
 
-set.seed(52341)
-pop <- population(30, 36500)
 detectable_times <- sapply(pop,
                            function(ind) max(ind$degrade_times) - min(ind$drop_times))
 
