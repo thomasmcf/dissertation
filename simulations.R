@@ -11,6 +11,7 @@ y1 <- y[seq(2, 22, 2)]
 
 pars <- list(lambda0 = 1, sigma = 1)
 mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
+
 times <- c(36500, 36530, 36560)
 t0 <- 36500 - 30
 
@@ -142,19 +143,27 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
 saveRDS(output, "mean_stay.rds")
 
 B <- 200
-point_ests_3 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = c) %dopar% {
+point_ests_3 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
   pop <- prune(population(30, 36500), t0)
   
   survhist <- survey_sim(x0, y0, x1, y1, pop, times, t0)$survhist
-  coef(survreg(survhist ~ 1, dist = "exponential"))
+  mod <- survreg(survhist ~ 1, dist = "exponential")
+  
+  data.frame(lcl = confint(mod)[1],
+             mean = coef(mod),
+             ucl = confint(mod)[2])
 }
 
 times <- 36500 + 0:11 * 30
-point_ests_12 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = c) %dopar% {
+point_ests_12 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
   pop <- prune(population(30, 36500), t0)
   
   survhist <- survey_sim(x0, y0, x1, y1, pop, times, t0)$survhist
-  coef(survreg(survhist ~ 1, dist = "exponential"))
+  mod <- survreg(survhist ~ 1, dist = "exponential")
+  
+  data.frame(lcl = confint(mod)[1],
+             mean = coef(mod),
+             ucl = confint(mod)[2])
 }
 
 
