@@ -373,31 +373,6 @@ make.surv <- function(survhist, t0, times){
   Surv(time = time, time2 = time2, event = event, type = "interval")
 }
 
-HPDI <- function(x, p){
-  N <- length(x)
-  n <- round(N * p)
-  
-  x <- sort(x)
-  
-  min_i <- 1
-  min_width <- x[n + 1] - x[1]
-  
-  for(i in 2:(N-n)){
-    lower <- x[i]
-    upper <- x[i + n]
-    
-    width <- upper - lower
-    
-    if(width < min_width){
-      min_width <- width
-      min_i <- i
-    }
-  }
-  
-  return(x[c(min_i, min_i + n)])
-}
-
-
 lambda <- function(d, lambda0, sigma){
   lambda0 * exp(-d**2 / (2 * sigma**2))
 }
