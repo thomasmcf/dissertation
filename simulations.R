@@ -219,5 +219,49 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
 beep()
 saveRDS(output, "survival sim log.rds")
 
-Sys.time()
+B <- 200
+df <- readRDS("exp_pres_det_est.rds")
+
+inits <- function(){
+  list(beta0 = rnorm(1),
+       beta1 = rnorm(1),
+       sig2 = runif(1))
+}
+
+monitor <- c("beta0", "beta1", "sig2", "predict", "corrected")
+
+nc <- 3
+nb <- 5000
+ni <- 10000 + nb
+nt <- 1
+
+output <- foreach(i = 1:B, c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
+  pop <- prune(population(30, 36500), 36500 - 30)
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, t0=36500-30)$capthist
+  mod <- secr.fit(capthist = capthist, mask = mask)
+  
+  jagsdat <- list(N = nrow(df),
+                  present = df$present,
+                  estimated = df$estimated,
+                  point_est = region.N(mod)[2, 1],
+                  std_error = region.N(mod)[2, 2])
+  
+  out <- jags(data = jagsdat,
+              inits = inits,
+              parameters.to.save = monitor,
+              model.file = "model.txt",
+              n.chains = nc,
+              n.iter = ni,
+              n.burnin = nb,
+              n.thin = nt)
+  
+  data.frame(uncorrected = jagsdat$point_est,
+             present = pres_det(pop, 36500)$pres,
+             mean = out$mean$corrected,
+             median = out$q50$corrected,
+             lcl = out$q2.5$corrected,
+             ucl = out$q97.5$corrected
+  )
+}
+
 stopCluster(cl)
