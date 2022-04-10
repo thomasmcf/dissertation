@@ -344,10 +344,9 @@ make.surv <- function(survhist, t0, times){
     else if(survhist$degradation_observed[i]){
       t_deg <- times[min(which(survhist[i, ] == "degraded")) - 2]
       
-      if(survhist$detections[i] == 0){
+      if(survhist$detections[i] <= 1){
         time[i] <- t_deg - t0
         time2[i] <- NA
-        
         event[i] <- 2
       }
       
@@ -355,19 +354,9 @@ make.surv <- function(survhist, t0, times){
         t_init <- times[min(which(survhist[i, ] == "detected")) - 2]
         t_last <- times[max(which(survhist[i, ] == "detected")) - 2]
         
-        if(t_init == t_last){
-          time[i] <- t_deg
-          time2[i] <- NA
-          
-          event[i] <- 2
-        }
-        
-        else{
-          time[i] <- t_last - t_init
-          time2[i] <- t_deg - t0
-          
-          event[i] <- 3 
-        }
+        time[i] <- t_last - t_init
+        time2[i] <- t_deg - t0
+        event[i] <- 3 
       }
     }
     
@@ -377,7 +366,6 @@ make.surv <- function(survhist, t0, times){
       
       time[i] <- t_last - t_init
       time2[i] <- NA
-      
       event[i] <- 0
     }
   }
