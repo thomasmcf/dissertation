@@ -7,7 +7,7 @@ model{
   for(i in 1:N){
     mu[i] <- beta0 + beta1 * estimated[i]
     scale[i] <- pow(abs(mu), 2 * m1)
-    var[i] = sig2 * scale[i]
+    var[i] <- sig2 * scale[i]
     
     present[i] ~ dnorm(mu[i], pow(var[i], -1))
   }
