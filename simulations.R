@@ -224,10 +224,11 @@ df <- readRDS("exp_pres_det_est.rds")
 inits <- function(){
   list(beta0 = rnorm(1),
        beta1 = rnorm(1),
-       sig2 = runif(1))
+       sig2 = runif(1),
+       m1 = runif(1))
 }
 
-monitor <- c("beta0", "beta1", "sig2", "predict", "corrected")
+monitor <- c("beta0", "beta1", "sig2", "corrected")
 
 nc <- 3
 nb <- 5000
