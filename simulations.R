@@ -15,7 +15,7 @@ mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
 times <- c(36500, 36530, 36560)
 t0 <- 36500 - 30
 
-cl <- makeCluster(2)
+cl <- makeCluster(20)
 registerDoParallel(cl)
 getDoParWorkers()
 
@@ -142,30 +142,82 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
 
 saveRDS(output, "mean_stay.rds")
 
-B <- 200
-point_ests_3 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
-  pop <- prune(population(30, 36500), t0)
-  
-  survhist <- survey_sim(x0, y0, x1, y1, pop, times, t0)$survhist
-  mod <- survreg(survhist ~ 1, dist = "exponential")
-  
-  data.frame(lcl = confint(mod)[1],
-             mean = coef(mod),
-             ucl = confint(mod)[2])
-}
-
-times <- 36500 + 0:11 * 30
-point_ests_12 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
-  pop <- prune(population(30, 36500), t0)
-  
-  survhist <- survey_sim(x0, y0, x1, y1, pop, times, t0)$survhist
-  mod <- survreg(survhist ~ 1, dist = "exponential")
-  
-  data.frame(lcl = confint(mod)[1],
-             mean = coef(mod),
-             ucl = confint(mod)[2])
-}
-
-
-stopCluster(cl)
 Sys.time()
+B <- 200
+t0 <- 36500 - 30
+times3 <- 36500 + 0:2 * 30
+times12 <- 36500 + 0:11 * 30
+
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
+  pop <- prune(population(30, 36500), t0)
+  
+  survhist3 <- survey_sim(x0, y0, x1, y1, pop, times3, t0)$survhist
+  survhist12 <- survey_sim(x0, y0, x1, y1, pop, times12, t0)$survhist
+  
+  mod3 <- survreg(survhist3 ~ 1, dist = "exponential")
+  mod12 <- survreg(survhist12 ~ 1, dist = "exponential")
+
+  mod3.contains <- exp(confint(mod3)[1]) <= 365/2 & 365/2 <= exp(confint(mod3)[2])
+  mod12.contains <- exp(confint(mod12)[1]) <= 365/2 & 365/2 <= exp(confint(mod12)[1])
+  
+  data.frame(mean3 = exp(coef(mod3)),
+             mean12 = exp(coef(mod12)),
+             contains3 = mod3.contains,
+             contains12 = mod12.contains
+  )
+}
+
+beep()
+saveRDS(output, "survival sim exp.rds")
+
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
+  pop <- prune(population(30, 36500), t0)
+  
+  survhist3 <- survey_sim(x0, y0, x1, y1, pop, times3, t0)$survhist
+  survhist12 <- survey_sim(x0, y0, x1, y1, pop, times12, t0)$survhist
+  
+  mod3 <- survreg(survhist3 ~ 1, dist = "weibull")
+  mod12 <- survreg(survhist12 ~ 1, dist = "weibull")
+  
+  mod3.confint <- predict(mod3, type = "quantile", p = c(0.025, 0.975))[1, ]
+  mod12.confint <- predict(mod3, type = "quantile", p = c(0.025, 0.975))[1, ]
+  
+  mod3.contains <- mod3.confint[1] <= 365/2 & 365/2 <= mod3.confint[2]
+  mod12.contains <- mod12.confint[1] <= 365/2 & 365/2 <= mod12.confint[1]
+
+  data.frame(mean3 = predict(mod3)[1],
+             mean12 = predict(mod12)[1],
+             contains3 = mod3.contains,
+             contains12 = mod12.contains
+  )
+}
+
+saveRDS(output, "survival sim wei.rds")
+
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
+  pop <- prune(population(30, 36500), t0)
+  
+  survhist3 <- survey_sim(x0, y0, x1, y1, pop, times3, t0)$survhist
+  survhist12 <- survey_sim(x0, y0, x1, y1, pop, times12, t0)$survhist
+  
+  mod3 <- survreg(survhist3 ~ 1, dist = "loglogistic")
+  mod12 <- survreg(survhist12 ~ 1, dist = "loglogistic")
+  
+  mod3.confint <- predict(mod3, type = "quantile", p = c(0.025, 0.975))[1, ]
+  mod12.confint <- predict(mod3, type = "quantile", p = c(0.025, 0.975))[1, ]
+  
+  mod3.contains <- mod3.confint[1] <= 365/2 & 365/2 <= mod3.confint[2]
+  mod12.contains <- mod12.confint[1] <= 365/2 & 365/2 <= mod12.confint[1]
+  
+  data.frame(mean3 = predict(mod3)[1],
+             mean12 = predict(mod12)[1],
+             contains3 = mod3.contains,
+             contains12 = mod12.contains
+  )
+}
+
+beep()
+saveRDS(output, "survival sim log.rds")
+
+Sys.time()
+stopCluster(cl)
