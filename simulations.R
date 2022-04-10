@@ -12,6 +12,7 @@ y1 <- y[seq(2, 22, 2)]
 pars <- list(lambda0 = 1, sigma = 1)
 mask <- make.mask(traps = transect_list, buffer = 0, spacing = 10)
 times <- c(36500, 36530, 36560)
+t0 <- 36500 - 30
 
 cl <- makeCluster(2)
 registerDoParallel(cl)
@@ -24,7 +25,7 @@ Sys.time()
 N_expected <- 1:5
 B <- length(N_expected)
 
-output <- foreach(i = 1:B, .packages = c("tidyverse", "secr"), .combine = rbind) %dopar% {
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
   N_exp <- N_expected[i]
   pop <- prune(population(N_exp, 365 * 101), 36500 - 30)
   
@@ -47,7 +48,7 @@ saveRDS(output, "exp_pres_det_est.rds")
 mean_lifes <- 7:372
 B <- length(mean_lifes)
 
-output <- foreach(i = 1:B, .packages = c("tidyverse", "secr"), .combine = rbind) %dopar% {
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
   mean_life <- mean_lifes[i]
   pop <- population(30, 365 * 101, mean_life = mean_life)
   
@@ -80,7 +81,7 @@ saveRDS(output, "dropping_life.rds")
 dropping_rate <- seq(1/7, 2, length.out = 200)
 B <- length(dropping_rate)
 
-output <- foreach(i = 1:B, .packages = c("tidyverse", "secr"), .combine = rbind) %dopar% {
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
   drop_rate <- dropping_rate[i]
   pop <- population(30, 365 * 101, drop_rate = drop_rate)
   
@@ -113,7 +114,7 @@ saveRDS(output, "drop_rate.rds")
 mean_stays <- seq(365/2, 365 * 1.5, length.out = 365)
 B <- length(mean_stays)
 
-output <- foreach(i = 1:B, .packages = c("tidyverse", "secr"), .combine = rbind) %dopar% {
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
   mean_stay <- mean_stays[i]
   pop <- population(30, 365 * 101, mean_stay = mean_stay)
   
@@ -139,5 +140,23 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr"), .combine = rbind)
 }
 
 saveRDS(output, "mean_stay.rds")
+
+B <- 200
+point_ests_3 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = c) %dopar% {
+  pop <- prune(population(30, 36500), t0)
+  
+  survhist <- survey_sim(x0, y0, x1, y1, pop, times, t0)$survhist
+  coef(survreg(survhist ~ 1, dist = "exponential"))
+}
+
+times <- 36500 + 0:11 * 30
+point_ests_12 <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = c) %dopar% {
+  pop <- prune(population(30, 36500), t0)
+  
+  survhist <- survey_sim(x0, y0, x1, y1, pop, times, t0)$survhist
+  coef(survreg(survhist ~ 1, dist = "exponential"))
+}
+
+
 stopCluster(cl)
 Sys.time()
