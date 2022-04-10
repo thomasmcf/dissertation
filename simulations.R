@@ -20,7 +20,6 @@ registerDoParallel(cl)
 getDoParWorkers()
 
 # Simulate populations of different abundances - with surveys
-set.seed(012345)
 Sys.time()
 
 N_expected <- 1:5
@@ -235,7 +234,7 @@ nb <- 5000
 ni <- 10000 + nb
 nt <- 1
 
-output <- foreach(i = 1:B, c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival", "jagsUI"), .combine = rbind) %dopar% {
   pop <- prune(population(30, 36500), 36500 - 30)
   capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, t0=36500-30)$capthist
   mod <- secr.fit(capthist = capthist, mask = mask)
@@ -264,4 +263,5 @@ output <- foreach(i = 1:B, c("tidyverse", "secr", "survival"), .combine = rbind)
   )
 }
 
+saveRDS(output, "test solution.rds")
 stopCluster(cl)
