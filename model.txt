@@ -1,18 +1,17 @@
 model{
-    beta0 ~ dnorm(0, 0.0001)
-    beta1 ~ dnorm(0, 0.0001)
-    sig2 ~ dunif(0, 100)
+  beta0 ~ dnorm(0, 0.0001)
+  beta1 ~ dnorm(0, 0.0001)
+  sig2 ~ dunif(0, 100)
+  m1 ~ dunif(0, 100)
 
-    for(i in 1:N){
-      mu[i] <- beta0 + beta1 * estimated[i]
-      present[i] ~ dnorm(mu[i], pow(sig2, -1))
-    }
+  for(i in 1:N){
+    mu[i] <- beta0 + beta1 * estimated[i]
+    scale[i] <- pow(abs(mu), 2 * m1)
+    var[i] = sig2 * scale[i]
     
-    for(j in 1:200){
-      mean[j] <- beta0 + beta1 * j
-      predict[j] ~ dnorm(mean[j], pow(sig2, -1))
-    }
+    present[i] ~ dnorm(mu[i], pow(var[i], -1))
+  }
 
-    uncorrected ~ dnorm(point_est, pow(std_error, -2))
-    corrected <- beta0 + beta1 * uncorrected
+  uncorrected ~ dnorm(point_est, pow(std_error, -2))
+  corrected <- beta0 + beta1 * uncorrected
  }
