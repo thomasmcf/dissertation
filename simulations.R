@@ -19,10 +19,7 @@ cl <- makeCluster(20)
 registerDoParallel(cl)
 getDoParWorkers()
 
-# Simulate populations of different abundances - with surveys
-Sys.time()
-
-N_expected <- 1:5
+N_expected <- 1:200
 B <- length(N_expected)
 
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
@@ -39,13 +36,12 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   )
 }
 
-beep()
 saveRDS(output, "exp_pres_det_est.rds")
 
 
 
 # Simulate populations with different mean dropping life time
-mean_lifes <- 7:372
+mean_lifes <- 7:365
 B <- length(mean_lifes)
 
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
@@ -53,13 +49,14 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   pop <- population(30, 365 * 101, mean_life = mean_life)
   
   detectable_times <- sapply(pop,
-                             function(ind) max(ind$degrade_times) - min(ind$drop_times))
+                             function(ind) max(ind$decay_times) - min(ind$drop_times))
   
   mean_detectable_time <- mean(detectable_times)
   se <- sd(detectable_times) / sqrt(length(detectable_times))
   
   slope <- mean_detectable_time / (365 + 2)
   
+  pop <- prune(pop, 36500 - 30)
   capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, t0=36500-30)
   mod <- secr::secr.fit(capthist = capthist$capthist, mask = mask)
   
@@ -86,13 +83,14 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   pop <- population(30, 365 * 101, drop_rate = drop_rate)
   
   detectable_times <- sapply(pop,
-                             function(ind) max(ind$degrade_times) - min(ind$drop_times))
+                             function(ind) max(ind$decay_times) - min(ind$drop_times))
   
   mean_detectable_time <- mean(detectable_times)
   se <- sd(detectable_times) / sqrt(length(detectable_times))
   
   slope <- mean_detectable_time / (365 + (1 / drop_rate))
   
+  pop <- prune(pop, 36500 - 30)
   capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, t0=36500-30)
   mod <- secr::secr.fit(capthist = capthist$capthist, mask = mask)
   
@@ -119,7 +117,7 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   pop <- population(30, 365 * 101, mean_stay = mean_stay)
   
   detectable_times <- sapply(pop,
-                             function(ind) max(ind$degrade_times) - min(ind$drop_times))
+                             function(ind) max(ind$decay_times) - min(ind$drop_times))
   
   mean_detectable_time <- mean(detectable_times)
   se <- sd(detectable_times) / sqrt(length(detectable_times))
@@ -141,7 +139,7 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
 
 saveRDS(output, "mean_stay.rds")
 
-Sys.time()
+
 B <- 200
 t0 <- 36500 - 30
 times3 <- 36500 + 0:2 * 30
@@ -166,7 +164,6 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   )
 }
 
-beep()
 saveRDS(output, "survival sim exp.rds")
 
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
@@ -215,7 +212,6 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   )
 }
 
-beep()
 saveRDS(output, "survival sim log.rds")
 
 B <- 200
@@ -228,11 +224,11 @@ inits <- function(){
        m1 = runif(1))
 }
 
-monitor <- c("beta0", "beta1", "sig2", "corrected")
+monitor <- "corrected"
 
 nc <- 3
-nb <- 5000
-ni <- 10000 + nb
+nb <- 10000
+ni <- 15000 + nb
 nt <- 1
 
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival", "jagsUI"), .combine = rbind) %dopar% {
@@ -264,5 +260,36 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival", "jagsU
   )
 }
 
-saveRDS(output, "test solution.rds")
+saveRDS(output, "solution fixed.rds")
+
+output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival", "jagsUI"), .combine = rbind) %dopar% {
+  pop <- prune(population(i, 36500), 36500 - 30)
+  capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, t0=36500-30)$capthist
+  mod <- secr.fit(capthist = capthist, mask = mask)
+  
+  jagsdat <- list(N = nrow(df),
+                  present = df$present,
+                  estimated = df$estimated,
+                  point_est = region.N(mod)[2, 1],
+                  std_error = region.N(mod)[2, 2])
+  
+  out <- jags(data = jagsdat,
+              inits = inits,
+              parameters.to.save = monitor,
+              model.file = "model2.txt",
+              n.chains = nc,
+              n.iter = ni,
+              n.burnin = nb,
+              n.thin = nt)
+  
+  data.frame(uncorrected = jagsdat$point_est,
+             present = pres_det(pop, 36500)$pres,
+             mean = out$mean$corrected,
+             median = out$q50$corrected,
+             lcl = out$q2.5$corrected,
+             ucl = out$q97.5$corrected
+  )
+}
+
+saveRDS(output, "solution random.rds")
 stopCluster(cl)
