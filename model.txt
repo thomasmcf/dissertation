@@ -6,10 +6,10 @@ model{
 
   for(i in 1:N){
     mu[i] <- beta0 + beta1 * estimated[i]
-    scale[i] <- pow(abs(mu), 2 * m1)
-    var[i] <- sig2 * scale[i]
-    
-    present[i] ~ dnorm(mu[i], pow(var[i], -1))
+    scale[i] <- pow(abs(mu[i]), 2 * m1)
+    vars[i] <- scale[i] * sig2
+
+    present[i] ~ dnorm(mu[i], pow(vars[i], -1))
   }
 
   uncorrected ~ dnorm(point_est, pow(std_error, -2))
