@@ -109,7 +109,7 @@ saveRDS(output, "drop_rate.rds")
 
 
 # Simulate populations with different turnover rates
-mean_stays <- seq(365/2, 365 * 1.5, length.out = 365)
+mean_stays <- seq(365/2, 365 * 1.5, length.out = 200)
 B <- length(mean_stays)
 
 output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .combine = rbind) %dopar% {
@@ -124,6 +124,7 @@ output <- foreach(i = 1:B, .packages = c("tidyverse", "secr", "survival"), .comb
   
   slope <- mean_detectable_time / (mean_stay + 2)
   
+  pop <- prune(pop, 36500 - 30)
   capthist <- survey_sim(x0, y0, x1, y1, pop, times = times, t0=36500-30)
   mod <- secr::secr.fit(capthist = capthist$capthist, mask = mask)
   
